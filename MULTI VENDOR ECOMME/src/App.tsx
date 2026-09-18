@@ -5,7 +5,7 @@ import SplashCursor from "./components/SplashCursor"
 import BootSplash from "./components/BootSplash"
 import CustomerHeader from "./components/CustomerHeader"
 import DashboardShell from "./components/DashboardShell"
-import { Toaster, RoleSwitcher, Footer } from "./components/chrome"
+import { Toaster, Footer } from "./components/chrome"
 import { BackButton } from "./components/common"
 
 import Home from "./pages/customer/Home"
@@ -18,7 +18,7 @@ import Orders from "./pages/customer/Orders"
 import OrderDetail from "./pages/customer/OrderDetail"
 import Tracking from "./pages/customer/Tracking"
 import Profile from "./pages/customer/Profile"
-import { Login, Register } from "./pages/customer/Auth"
+import { AdminLogin, Login, Register, VendorLogin, VendorRegister } from "./pages/customer/Auth"
 import Landing from "./pages/Landing"
 
 import {
@@ -68,6 +68,12 @@ function CustomerRoute({ view }: { view: string }) {
       return <Login />
     case "register":
       return <Register />
+    case "vendor-login":
+      return <VendorLogin />
+    case "vendor-register":
+      return <VendorRegister />
+    case "admin-login":
+      return <AdminLogin />
     default:
       return <Home />
   }
@@ -111,21 +117,25 @@ function DashboardRoute({ view }: { view: string }) {
 }
 
 function Shell() {
-  const { role, nav, loggedIn } = useStore()
+  const { role, nav, loggedIn, vendorAccess, logout } = useStore()
 
   // Auth gate: until the user signs in, only the landing + auth screens show.
   if (!loggedIn) {
     return (
       <div className="mh-aurora min-h-screen">
-        {nav.view === "login" ? <Login /> : nav.view === "register" ? <Register /> : <Landing />}
+        {nav.view === "login" ? <Login /> : nav.view === "register" ? <Register /> : nav.view === "vendor-login" ? <VendorLogin /> : nav.view === "vendor-register" ? <VendorRegister /> : nav.view === "admin-login" ? <AdminLogin /> : <Landing />}
       </div>
     )
   }
 
   if (role === "vendor" || role === "admin") {
+    if (role === "vendor" && vendorAccess !== "approved") {
+      return <VendorAccessGate status={vendorAccess} logout={logout} />
+    }
+    const safeView = role === "vendor" && nav.view.startsWith("a-") ? "v-dashboard" : role === "admin" && nav.view.startsWith("v-") ? "a-dashboard" : nav.view
     return (
       <DashboardShell>
-        <DashboardRoute view={nav.view} />
+        <DashboardRoute view={safeView} />
       </DashboardShell>
     )
   }
@@ -144,6 +154,23 @@ function Shell() {
         <CustomerRoute view={nav.view} />
       </main>
       {!isAuth && <Footer />}
+    </div>
+  )
+}
+
+function VendorAccessGate({ status, logout }: { status: "pending" | "rejected"; logout: () => void }) {
+  const pending = status === "pending"
+  return (
+    <div className="mh-aurora flex min-h-screen items-center justify-center px-xl py-2xl">
+      <div className="mh-glass mh-spatial w-full max-w-md rounded-corner-lg p-2xl text-center">
+        <h1 className="text-title text-text-primary">{pending ? "Vendor approval pending" : "Vendor access denied"}</h1>
+        <p className="mt-md text-label-sm leading-relaxed text-text-secondary">
+          {pending ? "Your vendor account is awaiting admin approval. You will be able to access the Seller Center once your application is approved." : "Your vendor application was rejected. Please contact MarketHub support for more information."}
+        </p>
+        <button type="button" onClick={logout} className="mt-xl rounded-corner-full border border-border-secondary bg-surface-bg px-lg py-md text-label-sm font-medium text-text-primary hover:bg-bg-hover">
+          Log out
+        </button>
+      </div>
     </div>
   )
 }
@@ -187,7 +214,6 @@ export default function App() {
       <SplashCursor />
       <Shell />
       <Toaster />
-      <RoleSwitcher />
     </Providers>
   )
 }

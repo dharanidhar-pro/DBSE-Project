@@ -1,106 +1,105 @@
 import { useState } from "react"
-import { ArrowLeft, ShieldCheck, ShoppingCart, Store } from "lucide-react"
-import { Button, Checkbox, InputField, SelectField } from "@figma/astraui"
-import { useStore, type Role } from "../../lib/store"
+import { ArrowLeft, LogIn, ShieldCheck, Store } from "lucide-react"
+import { Button, Checkbox, InputField } from "@figma/astraui"
+import { useStore } from "../../lib/store"
 import { LogoMark } from "../../components/Logo"
 
-const ROLE_CREDS: Record<Role, { email: string; password: string; label: string; icon: typeof ShoppingCart; blurb: string }> = {
-  customer: {
-    email: "ananya.sharma@gmail.com",
-    password: "demo1234",
-    label: "Customer",
-    icon: ShoppingCart,
-    blurb: "Shop from trusted sellers across India.",
-  },
-  vendor: {
-    email: "seller@nexaelectronics.in",
-    password: "seller123",
-    label: "Vendor",
-    icon: Store,
-    blurb: "Manage your products, inventory and orders.",
-  },
-  admin: {
-    email: "admin@markethub.in",
-    password: "admin123",
-    label: "Admin",
-    icon: ShieldCheck,
-    blurb: "Manage vendors, customers and the whole marketplace.",
-  },
+export function Login() {
+  const { authenticate, go, toast } = useStore()
+  return <LoginForm role="customer" title="Customer Login" subtitle="Shop from trusted sellers across India." authenticate={authenticate} go={go} toast={toast} />
 }
 
-export function Login() {
-  const { login, go, toast } = useStore()
-  const [role, setRole] = useState<Role>("customer")
-  const [email, setEmail] = useState(ROLE_CREDS.customer.email)
-  const [password, setPassword] = useState(ROLE_CREDS.customer.password)
+export function VendorLogin() {
+  const { authenticate, go, toast } = useStore()
+  return <LoginForm role="vendor" title="Vendor Login" subtitle="Manage your products, inventory and orders." authenticate={authenticate} go={go} toast={toast} />
+}
 
-  function pickRole(r: Role) {
-    setRole(r)
-    setEmail(ROLE_CREDS[r].email)
-    setPassword(ROLE_CREDS[r].password)
+export function VendorRegister() {
+  const { registerVendor, go, toast } = useStore()
+  const [businessName, setBusinessName] = useState("")
+  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [address, setAddress] = useState("")
+
+  function submit() {
+    if (!businessName.trim() || !email.trim() || !phone.trim() || !address.trim()) {
+      toast("Fill all vendor application fields", "error")
+      return
+    }
+    registerVendor({ business_name: businessName, email, phone, address })
+    toast("Vendor application submitted for admin approval", "success")
+    go("vendor-login")
   }
+
+  return (
+    <AuthShell title="Become a vendor" subtitle="Apply to sell products on MarketHub. Every application is reviewed by an admin." onBack={() => go("vendor-login")}>
+      <div className="flex flex-col gap-lg">
+        <InputField label="Business name" value={businessName} onChange={setBusinessName} />
+        <InputField label="Business email" value={email} onChange={setEmail} />
+        <InputField label="Phone" value={phone} onChange={setPhone} />
+        <InputField label="Business address" value={address} onChange={setAddress} />
+        <Button variant="primary" className="w-full" onClick={submit}>Submit vendor application</Button>
+        <p className="text-center text-label-sm text-text-secondary">Already a vendor? <button onClick={() => go("vendor-login")} className="font-medium text-brand-primary">Vendor login</button></p>
+      </div>
+    </AuthShell>
+  )
+}
+
+export function AdminLogin() {
+  const { authenticate, go, toast } = useStore()
+  return <LoginForm role="admin" title="Admin Login" subtitle="Secure access for marketplace administrators." authenticate={authenticate} go={go} toast={toast} />
+}
+
+function LoginForm({ role, title, subtitle, authenticate, go, toast }: { role: "customer" | "vendor" | "admin"; title: string; subtitle: string; authenticate: ReturnType<typeof useStore>["authenticate"]; go: ReturnType<typeof useStore>["go"]; toast: ReturnType<typeof useStore>["toast"] }) {
+  const [email, setEmail] = useState(role === "customer" ? "ananya.sharma@gmail.com" : role === "vendor" ? "sales@nexaelectronics.in" : "admin@markethub.in")
+  const [password, setPassword] = useState(role === "customer" ? "demo1234" : role === "vendor" ? "seller123" : "admin123")
+  const Icon = role === "vendor" ? Store : role === "admin" ? ShieldCheck : LogIn
 
   function submit() {
     if (!email.trim() || !password.trim()) {
       toast("Enter your email and password", "error")
       return
     }
-    login(role)
-    toast(`Signed in as ${ROLE_CREDS[role].label}`, "success")
+    const result = authenticate(role, email, password)
+    if (result === "invalid") toast("Account details were not recognized", "error")
+    else if (role === "vendor" && result === "pending") toast("Your vendor account is awaiting admin approval", "warning")
+    else if (role === "vendor" && result === "rejected") toast("Your vendor account was rejected", "error")
+    else toast(`Signed in as ${role === "customer" ? "Customer" : role === "vendor" ? "Vendor" : "Admin"}`, "success")
   }
 
   return (
-    <AuthShell title="Welcome back" subtitle={ROLE_CREDS[role].blurb}>
+    <AuthShell title={title} subtitle={subtitle} onBack={() => go("landing")}>
       <div className="flex flex-col gap-lg">
-        {/* Sign-in role — customers, sellers and the marketplace admin use one door. */}
-        <div>
-          <span className="text-label-sm font-medium text-text-secondary">Sign in as</span>
-          <div className="mt-md grid grid-cols-3 gap-md">
-            {(Object.keys(ROLE_CREDS) as Role[]).map((r) => {
-              const Icon = ROLE_CREDS[r].icon
-              const active = role === r
-              return (
-                <button
-                  key={r}
-                  onClick={() => pickRole(r)}
-                  aria-pressed={active}
-                  className={`mh-lift flex flex-col items-center gap-xs rounded-corner-lg border p-md text-center transition-colors ${
-                    active
-                      ? "border-border-selected bg-brand-tertiary text-brand-primary"
-                      : "border-border-secondary text-text-secondary hover:bg-bg-hover"
-                  }`}
-                >
-                  <Icon size={20} />
-                  <span className="text-video-title font-medium">{ROLE_CREDS[r].label}</span>
-                </button>
-              )
-            })}
-          </div>
+        <div className="flex items-center gap-md rounded-corner-md bg-brand-tertiary p-md text-label-sm text-text-secondary">
+          <Icon size={18} className="text-brand-primary" />
+          <span>{role === "customer" ? "Your MarketHub shopping account" : role === "vendor" ? "Seller Center access" : "Restricted marketplace administration"}</span>
         </div>
-
-        <InputField label="Email address" value={email} onChange={setEmail} />
+        <InputField label={role === "admin" ? "Admin email" : role === "vendor" ? "Vendor email" : "Email address"} value={email} onChange={setEmail} />
         <InputField label="Password" type="password" value={password} onChange={setPassword} />
         <div className="flex items-center justify-between">
           <Checkbox label="Remember me" defaultChecked onChange={() => {}} />
           <button className="text-label-sm text-brand-primary">Forgot password?</button>
         </div>
         <Button variant="primary" className="w-full" onClick={submit}>
-          Sign in as {ROLE_CREDS[role].label}
+          {role === "customer" ? "Login" : role === "vendor" ? "Vendor Login" : "Admin Login"}
         </Button>
-        <p className="text-center text-label-sm text-text-secondary">
-          New to MarketHub?{" "}
-          <button onClick={() => go("register")} className="text-brand-primary font-medium">
-            Create an account
-          </button>
-        </p>
+        {role === "customer" && (
+          <p className="text-center text-label-sm text-text-secondary">
+            New to MarketHub? <button onClick={() => go("register")} className="font-medium text-brand-primary">Create a customer account</button>
+          </p>
+        )}
+        {role === "vendor" && (
+          <p className="text-center text-label-sm text-text-secondary">
+            New seller? <button onClick={() => go("vendor-register")} className="font-medium text-brand-primary">Apply to sell</button>
+          </p>
+        )}
       </div>
     </AuthShell>
   )
 }
 
 export function Register() {
-  const { login, go, toast } = useStore()
-  const [type, setType] = useState("customer")
+  const { authenticate, go, toast } = useStore()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
@@ -116,58 +115,22 @@ export function Register() {
       toast("Please accept the terms to continue", "warning")
       return
     }
-    if (type === "vendor") {
-      login("vendor")
-      toast("Seller application submitted — welcome to your Seller Center", "success")
-    } else {
-      login("customer")
-      toast("Account created — welcome to MarketHub", "success")
-    }
+    authenticate("customer", email, password)
+    toast("Account created — welcome to MarketHub", "success")
   }
 
   return (
-    <AuthShell
-      title={type === "vendor" ? "Become a seller" : "Create your account"}
-      subtitle={
-        type === "vendor"
-          ? "Start selling to customers across India. Applications are reviewed by our team."
-          : "Join MarketHub to shop from trusted local sellers."
-      }
-    >
+    <AuthShell title="Create your account" subtitle="Join MarketHub to shop from trusted local sellers." onBack={() => go("landing")}>
       <div className="flex flex-col gap-lg">
-        <SelectField
-          label="I want to"
-          options={[
-            { value: "customer", label: "Shop as a customer" },
-            { value: "vendor", label: "Sell as a vendor" },
-          ]}
-          value={type}
-          onChange={setType}
-        />
-        <InputField label={type === "vendor" ? "Business name" : "Full name"} value={name} onChange={setName} />
+        <InputField label="Full name" value={name} onChange={setName} />
         <div className="flex flex-col gap-lg sm:flex-row">
-          <div className="flex-1">
-            <InputField label="Email" value={email} onChange={setEmail} />
-          </div>
-          <div className="flex-1">
-            <InputField label="Phone" value={phone} onChange={setPhone} />
-          </div>
+          <div className="flex-1"><InputField label="Email" value={email} onChange={setEmail} /></div>
+          <div className="flex-1"><InputField label="Phone" value={phone} onChange={setPhone} /></div>
         </div>
         <InputField label="Password" type="password" value={password} onChange={setPassword} />
-        <Checkbox
-          label="I agree to the Terms of Service and Privacy Policy"
-          defaultChecked={false}
-          onChange={setAgree}
-        />
-        <Button variant="primary" className="w-full" onClick={submit}>
-          {type === "vendor" ? "Apply to sell" : "Create account"}
-        </Button>
-        <p className="text-center text-label-sm text-text-secondary">
-          Already have an account?{" "}
-          <button onClick={() => go("login")} className="text-brand-primary font-medium">
-            Sign in
-          </button>
-        </p>
+        <Checkbox label="I agree to the Terms of Service and Privacy Policy" defaultChecked={false} onChange={setAgree} />
+        <Button variant="primary" className="w-full" onClick={submit}>Create customer account</Button>
+        <p className="text-center text-label-sm text-text-secondary">Already have an account? <button onClick={() => go("login")} className="font-medium text-brand-primary">Sign in</button></p>
       </div>
     </AuthShell>
   )

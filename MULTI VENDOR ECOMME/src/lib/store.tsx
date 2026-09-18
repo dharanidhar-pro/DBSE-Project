@@ -2,7 +2,6 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import {
   CUSTOMERS,
   DEMO_CUSTOMER,
-  DEMO_VENDOR_ID,
   INVENTORY,
   PRODUCTS,
   SEED_ORDERS,
@@ -21,19 +20,24 @@ export type CartLine = { product_id: number; quantity: number }
 export type Toast = { id: number; message: string; variant: "default" | "success" | "error" | "warning" }
 export type Nav = { view: string; params?: Record<string, string | number> }
 export type AdminProfile = { name: string; email: string; phone: string; title: string; joined_on: string }
+export type VendorAccess = "approved" | "pending" | "rejected"
+export type AuthResult = VendorAccess | "success" | "invalid"
 
 type Store = {
   role: Role
   setRole: (r: Role) => void
   loggedIn: boolean
+  vendorAccess: VendorAccess
   customer: Customer
   updateCustomer: (patch: Partial<Customer>) => void
   admin: AdminProfile
   updateAdmin: (patch: Partial<AdminProfile>) => void
   updateVendor: (vendorId: number, patch: Partial<Vendor>) => void
+  registerVendor: (vendor: Pick<Vendor, "business_name" | "email" | "phone" | "address">) => void
   avatars: Partial<Record<Role, string>>
   setAvatar: (role: Role, dataUrl: string) => void
   login: (role?: Role) => void
+  authenticate: (role: Role, email: string, password: string) => AuthResult
   logout: () => void
 
   nav: Nav
@@ -75,11 +79,30 @@ const Ctx = (g.__MH_STORE_CTX__ ??= createContext<Store | null>(null))
 
 let toastSeq = 1
 
+function viewFromPath(pathname: string): string {
+  if (pathname === "/login") return "login"
+  if (pathname === "/register") return "register"
+  if (pathname === "/vendor/login") return "vendor-login"
+  if (pathname === "/vendor/register") return "vendor-register"
+  if (pathname === "/admin/login") return "admin-login"
+  return "landing"
+}
+
+function pathForView(view: string): string {
+  if (view === "login") return "/login"
+  if (view === "register") return "/register"
+  if (view === "vendor-login") return "/vendor/login"
+  if (view === "vendor-register") return "/vendor/register"
+  if (view === "admin-login") return "/admin/login"
+  return "/"
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>("customer")
   const [loggedIn, setLoggedIn] = useState(false)
-  const [nav, setNav] = useState<Nav>({ view: "landing" })
+  const [nav, setNav] = useState<Nav>(() => ({ view: viewFromPath(typeof window === "undefined" ? "/" : window.location.pathname) }))
   const [history, setHistory] = useState<Nav[]>([])
+  const [vendorAccess, setVendorAccess] = useState<VendorAccess>("approved")
   const [products, setProducts] = useState<Product[]>(PRODUCTS)
   const [vendors, setVendors] = useState<Vendor[]>(VENDORS)
   const [inventory, setInventory] = useState<Inventory[]>(INVENTORY)
@@ -105,6 +128,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   function updateVendor(vendorId: number, patch: Partial<Vendor>) {
     setVendors((v) => v.map((x) => (x.vendor_id === vendorId ? { ...x, ...patch } : x)))
   }
+  function registerVendor(vendor: Pick<Vendor, "business_name" | "email" | "phone" | "address">) {
+    setVendors((current) => [
+      ...current,
+      {
+        ...vendor,
+        vendor_id: Math.max(...current.map((item) => item.vendor_id), 0) + 1,
+        status: "pending",
+        registered_on: new Date().toISOString().slice(0, 10),
+        approved_on: null,
+        rating: 0,
+      },
+    ])
+  }
   function setAvatar(r: Role, dataUrl: string) {
     setAvatars((a) => ({ ...a, [r]: dataUrl }))
   }
@@ -122,19 +158,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
+  function updateUrl(view: string) {
+    if (typeof window !== "undefined") window.history.pushState({}, "", pathForView(view))
+  }
+
   function go(view: string, params?: Record<string, string | number>) {
     setHistory((h) => [...h, nav])
     setNav({ view, params })
+    updateUrl(view)
     scrollTop()
   }
 
   function back(fallback?: string) {
     setHistory((h) => {
       if (h.length === 0) {
-        if (fallback) setNav({ view: fallback })
+        if (fallback) {
+          setNav({ view: fallback })
+          updateUrl(fallback)
+        }
         return h
       }
-      setNav(h[h.length - 1])
+      const previous = h[h.length - 1]
+      setNav(previous)
+      updateUrl(previous.view)
       return h.slice(0, -1)
     })
     scrollTop()
@@ -237,14 +283,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setRole: (r) => {
         setRole(r)
         setHistory([])
-        setNav({ view: r === "customer" ? "home" : r === "vendor" ? "v-dashboard" : "a-dashboard" })
+        const next = r === "customer" ? "home" : r === "vendor" ? "v-dashboard" : "a-dashboard"
+        setNav({ view: next })
+        updateUrl(next)
       },
       loggedIn,
+      vendorAccess,
       customer,
       updateCustomer,
       admin,
       updateAdmin,
       updateVendor,
+      registerVendor,
       avatars,
       setAvatar,
       login: (r?: Role) => {
@@ -252,7 +302,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (r) setRole(r)
         setLoggedIn(true)
         setHistory([])
-        setNav({ view: target === "customer" ? "home" : target === "vendor" ? "v-dashboard" : "a-dashboard" })
+        const next = target === "customer" ? "home" : target === "vendor" ? (vendorAccess === "approved" ? "v-dashboard" : `v-${vendorAccess}`) : "a-dashboard"
+        setNav({ view: next })
+        updateUrl(next)
+      },
+      authenticate: (target, email, password) => {
+        if (!email.trim() || !password.trim()) return "pending"
+        if (target === "vendor") {
+          const vendor = vendors.find((item) => item.email.toLowerCase() === email.trim().toLowerCase())
+          if (!vendor) return "invalid"
+          const access = vendor.status
+          setVendorAccess(access)
+          setRole("vendor")
+          setLoggedIn(true)
+          setHistory([])
+          const next = access === "approved" ? "v-dashboard" : `v-${access}`
+          setNav({ view: next })
+          updateUrl(next)
+          return access
+        }
+        setRole(target)
+        setLoggedIn(true)
+        setHistory([])
+        const next = target === "customer" ? "home" : "a-dashboard"
+        setNav({ view: next })
+        updateUrl(next)
+        return "success"
       },
       logout: () => {
         setLoggedIn(false)
@@ -260,6 +335,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setHistory([])
         toast("You have been logged out", "default")
         setNav({ view: "landing" })
+        updateUrl("landing")
       },
       nav,
       go,
@@ -287,7 +363,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       stockOf,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [role, loggedIn, nav, history, products, vendors, inventory, orders, cart, toasts, customer, admin, avatars],
+    [role, loggedIn, nav, history, products, vendors, inventory, orders, cart, toasts, customer, admin, avatars, vendorAccess],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

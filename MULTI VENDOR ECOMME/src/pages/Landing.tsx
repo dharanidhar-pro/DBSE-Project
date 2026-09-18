@@ -34,6 +34,9 @@ export default function Landing() {
             <Button variant="subtle" iconStart={<LogIn size={16} />} onClick={() => go("login")}>
               Login
             </Button>
+            <Button variant="subtle" iconStart={<Store size={16} />} onClick={() => go("vendor-login")}>
+              Vendor login
+            </Button>
             <Button variant="primary" iconStart={<UserPlus size={16} />} onClick={() => go("register")}>
               Register
             </Button>
@@ -216,6 +219,9 @@ export default function Landing() {
               </Button>
               <Button variant="neutral" iconStart={<LogIn size={16} />} onClick={() => go("login")}>
                 Login
+              </Button>
+              <Button variant="subtle" iconStart={<Store size={16} />} onClick={() => go("vendor-login")}>
+                Vendor login
               </Button>
             </div>
           </div>
