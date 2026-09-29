@@ -1,0 +1,70 @@
+# ==================================================================================
+# [CO6: Deployment, Observability & Delivery — Docker Compose & Multi-Service Assembly]
+# [CO4: Multi-Framework Backend Engineering — Service Boundaries & Polyglot Stack]
+# [CO5: Microservices Engineering — Service Decomposition & Inter-Service Networking]
+# ==================================================================================
+
+version: '3.8'
+
+services:
+  # [CO1: RDBMS Foundations & MySQL Container]
+  db:
+    image: mysql:8.0
+    container_name: markethub-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: multi_vendor_ecommerce
+      MYSQL_USER: markethub
+      MYSQL_PASSWORD: markethubpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./backend/database/multi_vendor_ecommerce.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./backend/database/stored_procedures_and_queries.sql:/docker-entrypoint-initdb.d/02_stored_logic.sql
+      - mysql_data:/var/lib/mysql
+    networks:
+      - markethub-network
+
+  # [CO3: Backend API Engineering — Flask REST API]
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: markethub-backend
+    restart: on-failure
+    depends_on:
+      - db
+    environment:
+      MYSQL_HOST: db
+      MYSQL_USER: markethub
+      MYSQL_PASSWORD: markethubpassword
+      MYSQL_DB: multi_vendor_ecommerce
+      MYSQL_PORT: 3306
+      SECRET_KEY: markethub-secret-key-2026
+    ports:
+      - "5000:5000"
+    networks:
+      - markethub-network
+
+  # [CO4: Multi-Framework Engineering — React/Vite Frontend]
+  frontend:
+    image: node:20-alpine
+    container_name: markethub-frontend
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - markethub-network
+
+networks:
+  markethub-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
