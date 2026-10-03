@@ -257,12 +257,8 @@ export const authService = {
     const admin = getAdmin();
     const cleanEmail = email.trim().toLowerCase();
     
-    // Support dump email 'admin@marketplace.com' / 'admin123' or 'admin@markethub.demo' / 'Admin@123'
-    const isAdminValid = (
-      (cleanEmail === admin.email.toLowerCase() && (password === admin.password || password === 'admin123' || password === 'Admin@123')) ||
-      (cleanEmail === 'admin@marketplace.com' && (password === 'admin123' || password === 'Admin@123')) ||
-      (cleanEmail === 'admin@markethub.demo' && (password === 'admin123' || password === 'Admin@123'))
-    );
+    const isAdminValid =
+      cleanEmail === 'admin@marketplace.com' && password === 'admin123';
 
     if (!isAdminValid) {
       return {

@@ -89,7 +89,7 @@ export const AdminLogin: React.FC = () => {
                 required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="admin@markethub.demo"
+                placeholder="admin@marketplace.com"
                 className="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-[#E2E8E6] rounded-lg focus:outline-none focus:border-[#115E59] focus:ring-1 focus:ring-[#115E59] text-[#172121]"
               />
               <Mail className="w-4 h-4 text-[#647070] absolute left-3 top-1/2 -translate-y-1/2" />

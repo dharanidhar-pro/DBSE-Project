@@ -212,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await loginVendor('rejected@markethub.demo', 'Vendor@123');
           break;
         case 'admin':
-          await loginAdmin('admin@markethub.demo', 'Admin@123');
+          await loginAdmin('admin@marketplace.com', 'admin123');
           break;
       }
     },
